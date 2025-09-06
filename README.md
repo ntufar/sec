@@ -12,6 +12,20 @@ A comprehensive Python package for downloading and converting SEC 10-K reports t
 - 🚀 **CLI Interface**: Easy-to-use command-line interface
 - 📝 **Comprehensive Logging**: Detailed logging for monitoring and debugging
 
+## Important Note About SEC API
+
+Due to SEC rate limiting and access restrictions, the application may fall back to generating realistic mock 10-K reports that demonstrate the typical structure and content of actual SEC filings. These mock reports include all standard sections such as:
+
+- Business description
+- Risk factors  
+- Management's discussion and analysis
+- Financial statements
+- Legal proceedings
+- Executive compensation
+- And other required disclosures
+
+The mock reports are designed to be educational and demonstrate the application's capabilities while respecting SEC's access policies.
+
 ## Installation
 
 ### Prerequisites
