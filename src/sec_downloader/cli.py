@@ -42,7 +42,7 @@ Examples:
   python -m sec_downloader download AAPL MSFT
   
   # Download and convert to PDF (slower but portable)
-  python -m sec_downloader download --convert AAPL MSFT
+  python -m sec_downloader download --pdf AAPL MSFT
   
   # Download and convert to HTML (much faster, viewable in browser)
   python -m sec_downloader download --html AAPL MSFT
@@ -64,7 +64,7 @@ Examples:
     download_parser = subparsers.add_parser('download', help='Download 10-K reports')
     download_parser.add_argument('tickers', nargs='+', help='Stock ticker symbols')
     download_parser.add_argument('--output-dir', '-o', help='Output directory for reports')
-    download_parser.add_argument('--convert', '-c', action='store_true', 
+    download_parser.add_argument('--pdf', '-p', action='store_true', 
                                help='Convert downloaded reports to PDF')
     download_parser.add_argument('--html', action='store_true',
                                help='Convert downloaded reports to HTML (much faster than PDF)')
@@ -143,7 +143,7 @@ def download_command(args, config: Config, logger: logging.Logger) -> int:
     
     # Initialize downloader
     downloader = SECDownloader(config)
-    converter = PDFConverter(config) if (args.convert or args.html) else None
+    converter = PDFConverter(config) if (args.pdf or args.html) else None
     
     logger.info(f"Starting download for tickers: {', '.join(args.tickers)}")
     
@@ -154,7 +154,7 @@ def download_command(args, config: Config, logger: logging.Logger) -> int:
     logger.info(f"Downloaded {total_downloaded} reports total")
     
     # Convert to PDF or HTML if requested
-    if args.convert and converter:
+    if args.pdf and converter:
         logger.info("Converting reports to PDF...")
         for ticker, reports in downloaded_reports.items():
             if reports:
