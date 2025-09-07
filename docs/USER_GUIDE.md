@@ -22,6 +22,7 @@ Before installing the SEC Downloader, ensure you have:
 - pip (Python package installer)
 - Internet connection
 - Sufficient disk space (reports can be large)
+- **macOS users**: Homebrew (for WeasyPrint system libraries)
 
 ### Step 1: Download the Package
 
@@ -48,6 +49,24 @@ pip install -r requirements.txt
 ```bash
 pip install -e .
 ```
+
+### Step 5: macOS Users - Install WeasyPrint System Libraries
+
+For PDF conversion functionality, WeasyPrint requires system libraries:
+
+```bash
+brew install cairo pango gdk-pixbuf libffi
+```
+
+### Step 6: Set Up Environment Variables (macOS Only)
+
+WeasyPrint requires a specific environment variable on macOS:
+
+```bash
+source setup_env.sh
+```
+
+This sets the `DYLD_FALLBACK_LIBRARY_PATH` environment variable needed for WeasyPrint to find the system libraries.
 
 ## First Steps
 
@@ -338,10 +357,29 @@ chmod 755 data/logs
 **Solution:** Install required dependencies:
 
 ```bash
-pip install weasyprint reportlab
+pip install weasyprint reportlab beautifulsoup4
 ```
 
-For better quality, install wkhtmltopdf:
+**macOS-specific WeasyPrint issues:**
+
+If you get `cannot load library 'libgobject-2.0-0'` errors:
+
+1. Install system libraries:
+```bash
+brew install cairo pango gdk-pixbuf libffi
+```
+
+2. Set environment variable:
+```bash
+export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:$DYLD_FALLBACK_LIBRARY_PATH
+```
+
+3. Or use the provided setup script:
+```bash
+source setup_env.sh
+```
+
+**For better quality, install wkhtmltopdf:**
 
 ```bash
 # macOS
@@ -350,6 +388,12 @@ brew install wkhtmltopdf
 # Ubuntu/Debian
 sudo apt-get install wkhtmltopdf
 ```
+
+**PDF Conversion Strategy:**
+- **WeasyPrint**: Used for smaller files (<10MB) with excellent quality
+- **wkhtmltopdf**: Used for large files if available (discontinued upstream)
+- **ReportLab**: Robust fallback that handles any file size with chunking
+- **Memory optimization**: Large files are processed in chunks to prevent memory issues
 
 #### 4. Network Issues
 

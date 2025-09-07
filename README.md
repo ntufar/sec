@@ -18,6 +18,7 @@ A comprehensive Python package for downloading and converting SEC 10-K reports t
 
 - Python 3.8 or higher
 - pip (Python package installer)
+- **macOS users**: Homebrew (for WeasyPrint system libraries)
 
 ### Install from Source
 
@@ -36,6 +37,16 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 3. Install the package:
 ```bash
 pip install -e .
+```
+
+4. **macOS users - Install WeasyPrint system libraries:**
+```bash
+brew install cairo pango gdk-pixbuf libffi
+```
+
+5. **Set up environment variables (macOS only):**
+```bash
+source setup_env.sh
 ```
 
 ### Install Dependencies

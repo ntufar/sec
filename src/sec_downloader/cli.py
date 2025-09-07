@@ -41,8 +41,11 @@ Examples:
   # Download 10-K reports for Apple and Microsoft
   python -m sec_downloader download AAPL MSFT
   
-  # Download and convert to PDF
+  # Download and convert to PDF (slower but portable)
   python -m sec_downloader download --convert AAPL MSFT
+  
+  # Download and convert to HTML (much faster, viewable in browser)
+  python -m sec_downloader download --html AAPL MSFT
   
   # Download with custom output directory
   python -m sec_downloader download --output-dir ./reports AAPL
@@ -63,6 +66,8 @@ Examples:
     download_parser.add_argument('--output-dir', '-o', help='Output directory for reports')
     download_parser.add_argument('--convert', '-c', action='store_true', 
                                help='Convert downloaded reports to PDF')
+    download_parser.add_argument('--html', action='store_true',
+                               help='Convert downloaded reports to HTML (much faster than PDF)')
     download_parser.add_argument('--max-reports', type=int, default=5,
                                help='Maximum number of reports per company')
     download_parser.add_argument('--config', help='Path to configuration file')
@@ -78,6 +83,12 @@ Examples:
     convert_parser.add_argument('input_path', help='Path to input file or directory')
     convert_parser.add_argument('--output-dir', '-o', help='Output directory for PDFs')
     convert_parser.add_argument('--config', help='Path to configuration file')
+    
+    # Extract HTML command
+    extract_html_parser = subparsers.add_parser('extract-html', help='Extract pure HTML from SEC 10-K documents')
+    extract_html_parser.add_argument('input_path', help='Path to input SEC 10-K file or directory')
+    extract_html_parser.add_argument('--output-dir', '-o', help='Output directory for HTML files')
+    extract_html_parser.add_argument('--config', help='Path to configuration file')
     
     # Config command
     config_parser = subparsers.add_parser('config', help='Configuration management')
@@ -106,6 +117,8 @@ Examples:
             return list_tickers_command(args, config, logger)
         elif args.command == 'convert':
             return convert_command(args, config, logger)
+        elif args.command == 'extract-html':
+            return extract_html_command(args, config, logger)
         elif args.command == 'config':
             return config_command(args, config, logger)
         else:
@@ -130,7 +143,7 @@ def download_command(args, config: Config, logger: logging.Logger) -> int:
     
     # Initialize downloader
     downloader = SECDownloader(config)
-    converter = PDFConverter(config) if args.convert else None
+    converter = PDFConverter(config) if (args.convert or args.html) else None
     
     logger.info(f"Starting download for tickers: {', '.join(args.tickers)}")
     
@@ -140,13 +153,20 @@ def download_command(args, config: Config, logger: logging.Logger) -> int:
     total_downloaded = sum(len(reports) for reports in downloaded_reports.values())
     logger.info(f"Downloaded {total_downloaded} reports total")
     
-    # Convert to PDF if requested
+    # Convert to PDF or HTML if requested
     if args.convert and converter:
         logger.info("Converting reports to PDF...")
         for ticker, reports in downloaded_reports.items():
             if reports:
                 pdf_reports = converter.batch_convert(reports)
                 logger.info(f"Converted {len(pdf_reports)} reports to PDF for {ticker}")
+    
+    if args.html and converter:
+        logger.info("Converting reports to HTML...")
+        for ticker, reports in downloaded_reports.items():
+            if reports:
+                html_reports = converter.batch_convert_to_html(reports)
+                logger.info(f"Converted {len(html_reports)} reports to HTML for {ticker}")
     
     return 0
 
@@ -220,6 +240,51 @@ def convert_command(args, config: Config, logger: logging.Logger) -> int:
         converted_files = converter.batch_convert(text_files, output_dir)
         logger.info(f"Converted {len(converted_files)} files to PDF")
         return 0
+
+
+def extract_html_command(args, config: Config, logger: logging.Logger) -> int:
+    """Handle extract-html command"""
+    converter = PDFConverter(config)
+    input_path = Path(args.input_path)
+    
+    if not input_path.exists():
+        logger.error(f"Input path does not exist: {input_path}")
+        return 1
+    
+    # Determine output directory
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+    else:
+        output_dir = input_path.parent / 'html'
+    
+    if input_path.is_file():
+        # Extract HTML from single file
+        if converter.extract_pure_html_from_sec_document(input_path, output_dir / f"{input_path.stem}.html"):
+            logger.info(f"Successfully extracted HTML from {input_path}")
+            return 0
+        else:
+            logger.error(f"Failed to extract HTML from {input_path}")
+            return 1
+    else:
+        # Extract HTML from all files in directory
+        txt_files = list(input_path.glob("**/*.txt"))
+        if not txt_files:
+            logger.error(f"No .txt files found in {input_path}")
+            return 1
+        
+        success_count = 0
+        for txt_file in txt_files:
+            output_file = output_dir / txt_file.relative_to(input_path).with_suffix('.html')
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            if converter.extract_pure_html_from_sec_document(txt_file, output_file):
+                success_count += 1
+                logger.info(f"Successfully extracted HTML from {txt_file}")
+            else:
+                logger.warning(f"Failed to extract HTML from {txt_file}")
+        
+        logger.info(f"Extracted HTML from {success_count}/{len(txt_files)} files")
+        return 0 if success_count > 0 else 1
 
 
 def config_command(args, config: Config, logger: logging.Logger) -> int:

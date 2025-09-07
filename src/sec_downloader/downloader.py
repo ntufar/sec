@@ -5,6 +5,7 @@ SEC EDGAR Downloader for 10-K reports
 import requests
 import time
 import logging
+import random
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from urllib.parse import urljoin
@@ -22,7 +23,7 @@ class SECDownloader:
         self.config = config
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': config.get('sec.user_agent'),
+            'User-Agent': 'SEC Downloader Tool (ntufar@gmail.com)',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate',
@@ -62,23 +63,32 @@ class SECDownloader:
             # Use the correct SEC API endpoint for company submissions
             url = f"https://data.sec.gov/submissions/CIK{cik}.json"
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json',
+                'User-Agent': 'SEC Downloader Tool (ntufar@gmail.com)',
+                'Accept': 'application/json, text/plain, */*',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1'
+                'Connection': 'keep-alive'
             }
             
-            # Add delay to respect SEC rate limits
-            time.sleep(0.1)
+            # Add random delay to respect SEC rate limits and avoid detection
+            delay = random.uniform(0.5, 1.5)  # Random delay between 0.5-1.5 seconds
+            time.sleep(delay)
             
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
+            # Retry logic with exponential backoff
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = self.session.get(url, headers=headers, timeout=30)
+                    response.raise_for_status()
+                    break
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 403 and attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                        self.logger.warning(f"403 error on attempt {attempt + 1}, retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise
             
             data = response.json()
             
@@ -127,29 +137,89 @@ class SECDownloader:
             raise
     
     
+    def get_complete_submission_text(self, cik: str, accession_number: str) -> Dict:
+        """Get the complete submission text file which contains the full 10-K content"""
+        try:
+            # The complete submission text file URL format - remove dashes from accession number in directory path
+            accession_no_dashes = accession_number.replace('-', '')
+            url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_no_dashes}/{accession_number}.txt"
+            
+            headers = {
+                'User-Agent': 'SEC Downloader Tool (ntufar@gmail.com)',
+                'Accept': 'text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive'
+            }
+            
+            # Add random delay to respect SEC rate limits
+            delay = random.uniform(0.5, 1.5)
+            time.sleep(delay)
+            
+            # Retry logic with exponential backoff
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = self.session.get(url, headers=headers, timeout=30)
+                    response.raise_for_status()
+                    break
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 403 and attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 2
+                        self.logger.warning(f"403 error on attempt {attempt + 1}, retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise
+            
+            # Return the complete submission text
+            return {
+                'filename': f"{accession_number}.txt",
+                'url': url,
+                'type': 'Complete Submission Text',
+                'content': response.text,
+                'size': len(response.text)
+            }
+            
+        except requests.RequestException as e:
+            self.logger.error(f"Failed to get complete submission text for {accession_number}: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error getting complete submission text for {accession_number}: {e}")
+            raise
+
     def get_filing_documents(self, cik: str, accession_number: str) -> List[Dict]:
         """Get all documents for a specific filing"""
         try:
             # Use the correct SEC API endpoint for filing documents
             url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{accession_number}-index.html"
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'User-Agent': 'SEC Downloader Tool (contact@example.com)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1'
+                'Connection': 'keep-alive'
             }
             
-            # Add delay to respect SEC rate limits
-            time.sleep(0.1)
+            # Add random delay to respect SEC rate limits and avoid detection
+            delay = random.uniform(0.5, 1.5)  # Random delay between 0.5-1.5 seconds
+            time.sleep(delay)
             
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
+            # Retry logic with exponential backoff
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = self.session.get(url, headers=headers, timeout=30)
+                    response.raise_for_status()
+                    break
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 403 and attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                        self.logger.warning(f"403 error on attempt {attempt + 1}, retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise
             
             # Parse the HTML to extract document information
             from bs4 import BeautifulSoup
@@ -186,26 +256,51 @@ class SECDownloader:
                             }
                             all_documents.append(document)
                 
-                # Prioritize 10-K documents over exhibits
-                # Look for documents that contain "10-K" in the filename or type
-                primary_docs = []
+                # Prioritize main 10-K document over exhibits
+                main_10k_docs = []
+                other_primary_docs = []
                 exhibit_docs = []
                 
                 for doc in all_documents:
-                    if ('10-k' in doc['filename'].lower() or 
-                        '10-k' in doc['doc_type'].lower() or
-                        doc['filename'].endswith('.htm') or 
-                        doc['filename'].endswith('.html')):
-                        if 'exhibit' in doc['filename'].lower() or 'ex-' in doc['filename'].lower():
-                            exhibit_docs.append(doc)
-                        else:
-                            primary_docs.append(doc)
+                    filename_lower = doc['filename'].lower()
+                    doc_type_lower = doc['doc_type'].lower()
+                    
+                    # Check if it's an exhibit (EX-*)
+                    if ('exhibit' in filename_lower or 
+                        'ex-' in filename_lower or
+                        doc_type_lower.startswith('ex-')):
+                        exhibit_docs.append(doc)
+                    # Check if it's the complete submission text file (main 10-K)
+                    elif ('complete submission text file' in doc_type_lower or
+                          (filename_lower.endswith('.txt') and not any(x in filename_lower for x in ['exhibit', 'ex-', 'cert', 'cover']))):
+                        main_10k_docs.append(doc)
+                    # Check if it's the main 10-K HTML document
+                    elif (('10-k' in filename_lower and not any(x in filename_lower for x in ['exhibit', 'ex-', 'cert', 'cover', 'xbrl'])) or
+                          (doc_type_lower == '10-k' and not any(x in filename_lower for x in ['exhibit', 'ex-', 'cert', 'cover', 'xbrl'])) or
+                          (filename_lower.endswith('.htm') and not any(x in filename_lower for x in ['exhibit', 'ex-', 'cert', 'cover', 'xbrl']))):
+                        main_10k_docs.append(doc)
+                    # Other primary documents
+                    elif (filename_lower.endswith('.htm') or 
+                          filename_lower.endswith('.html') or
+                          filename_lower.endswith('.txt')):
+                        other_primary_docs.append(doc)
                     else:
                         exhibit_docs.append(doc)
                 
-                # Add primary documents first, then exhibits
-                documents.extend(primary_docs)
+                # Add main 10-K documents first, then other primary docs, then exhibits
+                documents.extend(main_10k_docs)
+                documents.extend(other_primary_docs)
                 documents.extend(exhibit_docs)
+                
+                # Log document selection for debugging
+                self.logger.info(f"Document selection for {accession_number}:")
+                self.logger.info(f"  Main 10-K docs: {len(main_10k_docs)}")
+                self.logger.info(f"  Other primary docs: {len(other_primary_docs)}")
+                self.logger.info(f"  Exhibit docs: {len(exhibit_docs)}")
+                if main_10k_docs:
+                    self.logger.info(f"  Selected main doc: {main_10k_docs[0]['filename']}")
+                elif other_primary_docs:
+                    self.logger.info(f"  Selected primary doc: {other_primary_docs[0]['filename']}")
             
             # If no documents found in table, create basic document entry
             if not documents:
@@ -245,24 +340,32 @@ class SECDownloader:
             
             # Set up headers for SEC requests
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'User-Agent': 'SEC Downloader Tool (contact@example.com)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1'
+                'Connection': 'keep-alive'
             }
             
-            # Add delay to respect SEC rate limits
-            time.sleep(0.1)
+            # Add random delay to respect SEC rate limits and avoid detection
+            delay = random.uniform(0.5, 1.5)  # Random delay between 0.5-1.5 seconds
+            time.sleep(delay)
             
-            # Download the document
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
+            # Retry logic with exponential backoff
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = self.session.get(url, headers=headers, timeout=30)
+                    response.raise_for_status()
+                    break
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 403 and attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                        self.logger.warning(f"403 error on attempt {attempt + 1}, retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise
             
             # Determine file extension based on content type or URL
             content_type = response.headers.get('content-type', '').lower()
@@ -353,20 +456,41 @@ class SECDownloader:
             ticker_reports = []
             
             for filing in filings:
-                # Get all documents for this filing
-                documents = self.get_filing_documents(cik, filing['accessionNumber'])
-                
-                # Download the main 10-K document
-                main_doc = next((doc for doc in documents if doc['type'] == '10-K'), None)
-                
-                if main_doc:
+                # Get the complete submission text file which contains the full 10-K content
+                try:
+                    complete_text = self.get_complete_submission_text(cik, filing['accessionNumber'])
+                    
                     # Create filename: TICKER_YYYY-MM-DD_10K.txt
                     filing_date = filing['filingDate']
                     filename = f"{ticker}_{filing_date}_10K.txt"
                     file_path = output_path / ticker / filename
                     
-                    if self.download_document(main_doc['url'], file_path):
-                        ticker_reports.append(file_path)
+                    # Ensure directory exists
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Write the complete submission text to file
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(complete_text['content'])
+                    
+                    self.logger.info(f"Downloaded complete 10-K report to {file_path} ({complete_text['size']:,} characters)")
+                    ticker_reports.append(file_path)
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to download complete submission text for {ticker} {filing['accessionNumber']}: {e}")
+                    # Fallback to original method
+                    try:
+                        documents = self.get_filing_documents(cik, filing['accessionNumber'])
+                        main_doc = documents[0] if documents else None
+                        
+                        if main_doc:
+                            filing_date = filing['filingDate']
+                            filename = f"{ticker}_{filing_date}_10K.txt"
+                            file_path = output_path / ticker / filename
+                            
+                            if self.download_document(main_doc['url'], file_path):
+                                ticker_reports.append(file_path)
+                    except Exception as fallback_error:
+                        self.logger.error(f"Fallback download also failed for {ticker}: {fallback_error}")
                 
                 # Rate limiting
                 time.sleep(self.config.get('sec.rate_limit_delay'))
