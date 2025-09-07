@@ -1,11 +1,12 @@
 # SEC 10-K Report Downloader
 
-A comprehensive Python package for downloading and converting SEC 10-K reports to PDF format. This tool provides an easy-to-use interface for accessing SEC filings and converting them into readable PDF documents.
+A comprehensive Python package for downloading and converting SEC 10-K reports to PDF and HTML formats. This tool provides an easy-to-use interface for accessing SEC filings and converting them into readable PDF documents or clean HTML files.
 
 ## Features
 
 - 📥 **Download 10-K Reports**: Automatically download SEC 10-K filings for any publicly traded company
 - 📄 **PDF Conversion**: Convert downloaded reports to professionally formatted PDF documents
+- 🌐 **HTML Extraction**: Extract clean, readable HTML from SEC 10-K documents
 - 🔍 **Company Search**: Search and list available company tickers from the SEC database
 - ⚙️ **Configurable**: Highly configurable with YAML configuration files
 - 📊 **Batch Processing**: Download multiple companies' reports in a single operation
@@ -89,7 +90,7 @@ python -m sec_downloader download AAPL MSFT GOOGL
 
 Download and convert to PDF:
 ```bash
-python -m sec_downloader download --convert AAPL MSFT
+python -m sec_downloader download --pdf AAPL MSFT
 ```
 
 ### 3. List Available Companies
@@ -123,7 +124,8 @@ python -m sec_downloader download [OPTIONS] TICKERS...
 
 Options:
   -o, --output-dir PATH     Output directory for reports
-  -c, --convert            Convert downloaded reports to PDF
+  -p, --pdf                Convert downloaded reports to PDF
+  --html                   Convert downloaded reports to HTML (much faster than PDF)
   --max-reports INTEGER    Maximum number of reports per company (default: 5)
   --config PATH            Path to configuration file
 ```
@@ -144,6 +146,15 @@ python -m sec_downloader convert [OPTIONS] INPUT_PATH
 
 Options:
   -o, --output-dir PATH    Output directory for PDFs
+  --config PATH            Path to configuration file
+```
+
+#### Extract HTML Command
+```bash
+python -m sec_downloader extract-html [OPTIONS] INPUT_PATH
+
+Options:
+  -o, --output-dir PATH    Output directory for HTML files
   --config PATH            Path to configuration file
 ```
 
@@ -245,7 +256,7 @@ sec-downloader/
 ### Example 1: Download Apple's Recent 10-K Reports
 
 ```bash
-python -m sec_downloader download --convert --max-reports 3 AAPL
+python -m sec_downloader download --pdf --max-reports 3 AAPL
 ```
 
 ### Example 2: Search for Technology Companies
@@ -257,13 +268,19 @@ python -m sec_downloader list-tickers --search "technology" --limit 20
 ### Example 3: Batch Download Multiple Companies
 
 ```bash
-python -m sec_downloader download --convert AAPL MSFT GOOGL AMZN TSLA
+python -m sec_downloader download --pdf AAPL MSFT GOOGL AMZN TSLA
 ```
 
 ### Example 4: Convert Existing Files
 
 ```bash
 python -m sec_downloader convert ./data/reports/ --output-dir ./pdf_reports/
+```
+
+### Example 5: Extract HTML from SEC Documents
+
+```bash
+python -m sec_downloader extract-html ./data/reports/AAPL/AAPL_2024-11-01_10K.txt
 ```
 
 ## Development
